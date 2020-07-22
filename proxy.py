@@ -4,12 +4,16 @@ import sys
 
 # Keeps track of whether or not the robot has crashed and needs to reset
 crashed = False
+state = {
+    "crashed" : False,
+    "hasLimit" : False
+}
 
 movement_commands = ["moveForward", "turnLeft", "turnRight", "wallFront",
                      "wallLeft", "wallRight"]
 
 def invalid_to_send(line):
-    if crashed:
+    if state["crashed"]:
         # Commands to move, turn, or detect walls will be ignored.
         if line.split()[0] in movement_commands:
             sys.stderr.write("Cannot move or detect walls while crashed. Must send ackReset.\n")
@@ -35,21 +39,38 @@ def needs_response(line):
     the simulator, otherwise returns false."""
     line_start = line.split()[0]
     return line_start in commands_that_need_response
+
+def is_movement_command(line):
+    """Takes the input line and returns True if the command was a move or turn,
+    otherwise returns false."""
+    line_start = line.split()[0]
+    return line_start in ["moveForward", "turnRight", "turnLeft"]
+
+def get_distance_plus_turns():
+    """Gets the total effective distance plus total turns from the simulator"""
+    sys.stdout.write("getStat total-effective-distance\n")
+    sys.stdout.flush()
+    total_distance = int(sys.stdin.readline())
+    sys.stdout.write("getStat total-turns\n")
+    sys.stdout.flush()
+    total_turns = int(sys.stdin.readline())
+    return total_distance + total_turns
     
 def main():
     parser = argparse.ArgumentParser()
     # parser.add_argument("--out", help="file to output the score")
-    # parser.add_argument("--limit", type=int, help="maximum number of turns plus movements before ending program (default 2000)")
+    parser.add_argument("--limit", type=int, help="maximum number of turns plus movements before ending program")
     # TODO Add feature to log score to output file once supported by the simulator API
-    # TODO Implement limit on number of moves + turns once simulator API
-    # supports getting score. Assume for now that the simulator will give this
-    # information with the command `getStat totalDistance` and
-    # `getStat totalTurns`. After reaching limit, terminate the process.
     # Uncomment those parser arguments once implemented.
 
     parser.add_argument("command", type=str, nargs="+", help="command that executes the maze-solving program")
     args = vars(parser.parse_args())
     sys.stderr.write(str(args['command'])+'\n')
+
+    # Determine if a limit is invoked
+    if args["limit"] is not None:
+        state["hasLimit"] = True
+        state["limit"] = args["limit"]
 
     # Launch the subprocess
     proc = subprocess.Popen(args['command'], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -69,16 +90,24 @@ def main():
             
             if (needs_response(decode_line)):
                 inp = sys.stdin.readline() # Read from simulator
-                global crashed
                 if (inp == "crash\n"):
-                    crashed = True
+                    state["crashed"] = True
                 elif (decode_line == "ackReset\n" and inp == "ack\n"):
                     # No longer crashed
-                    crashed = False
+                    state["crashed"] = False
                 proc.stdin.write(inp.encode('utf-8'))
                 proc.stdin.flush()
+
+                # Check if mouse exceeded limit of moves + turns
+                if (is_movement_command(decode_line) and state["hasLimit"]
+                    and get_distance_plus_turns() > state["limit"]):
+                    sys.stderr.write("Maximum movements exceeded\n")
+                    sys.stderr.flush()
+                    proc.kill()
+                    exit(1)
     except:
         sys.stderr.write("exception\n")
+        sys.stderr.flush()
         proc.kill()
         raise
     
