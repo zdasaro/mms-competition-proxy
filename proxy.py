@@ -9,17 +9,21 @@ state = {
     "hasOut" : False
 }
 
-movement_commands = ["moveForward", "turnLeft", "turnRight", "wallFront",
+invalid_commands_for_crash = ["moveForward", "turnLeft", "turnRight", "wallFront",
                      "wallLeft", "wallRight"]
 
 def write(stream, string):
+    """Writes the string to the stream and then flushes the stream"""
     stream.write(string)
     stream.flush()
 
 def invalid_to_send(line):
+    """Checks if the line is invalid to send, either because the mouse is
+    crashed or because the command is getStat. Returns a response to the
+    algorithm in place of sending the command to the simulator."""
     if state["crashed"]:
         # Commands to move, turn, or detect walls will be ignored.
-        if line.split()[0] in movement_commands:
+        if line.split()[0] in invalid_commands_for_crash:
             write(sys.stderr, "Cannot move or detect walls while crashed. Must send ackReset.\n")
             return b"crash\n"
     # getStat command cannot be sent
@@ -62,6 +66,8 @@ def get_distance_plus_turns():
     return total_distance + total_turns
 
 def write_all_stats(command, excepted=False):
+    """Gets relevant stats from the simulator and logs them to the output file
+    """
     with open(state["outfile"], "a") as f:
         f.write("command: {}\n".format(command))
         if excepted:
