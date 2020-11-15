@@ -60,7 +60,7 @@ def is_movement_command(line):
 def get_distance_plus_turns():
     """Gets the total effective distance plus total turns from the simulator"""
     write(sys.stdout, "getStat total-effective-distance\n")
-    total_distance = int(sys.stdin.readline())
+    total_distance = float(sys.stdin.readline())
     write(sys.stdout, "getStat total-turns\n")
     total_turns = int(sys.stdin.readline())
     return total_distance + total_turns
